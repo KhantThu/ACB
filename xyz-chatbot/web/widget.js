@@ -1,0 +1,27 @@
+(() => {
+  const script = document.currentScript;
+  const root = document.getElementById(script?.dataset.target || 'xyz-chat');
+  if (!root) return;
+  const base = (script.dataset.apiBase || '').replace(/\/$/, '');
+  const node = (tag, className, parent, text) => { const e=document.createElement(tag); e.className=className; if(text) e.textContent=text; parent.append(e); return e; };
+  const box=node('div','chat',root);
+  const tools=node('div','toolbar',box);
+  const language=node('select','',tools);
+  [['en','English'],['my','မြန်မာ'],['th','ไทย']].forEach(([v,t]) => { const o=node('option','',language,t); o.value=v; });
+  language.setAttribute('aria-label','Language');
+  const messages=node('div','messages',box); messages.setAttribute('role','log'); messages.setAttribute('aria-live','polite');
+  const form=node('form','compose',box);
+  const input=node('input','',form); input.required=true; input.maxLength=1000; input.placeholder='Ask a question'; input.setAttribute('aria-label','Question');
+  const send=node('button','',form,'Send');
+  const escalate=node('form','escalation',box);
+  const contact=node('input','',escalate); contact.required=true; contact.maxLength=200; contact.placeholder='Email or phone'; contact.setAttribute('aria-label','Email or phone');
+  const label=node('label','',escalate); const consent=node('input','',label); consent.type='checkbox'; consent.required=true; label.append(' I agree to be contacted about this question.');
+  const request=node('button','',escalate,'Request agent');
+  const status=node('div','status',box); status.setAttribute('role','status');
+  node('small','small',box,'Do not enter passwords, card numbers, or sensitive personal information.');
+  let sessionId=null;
+  const bubble=(text,who)=>node('div','bubble '+who,messages,text);
+  const api=async(path,body)=>{const res=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!res.ok) throw new Error('Request failed ('+res.status+')');return res.json();};
+  form.addEventListener('submit',async event=>{event.preventDefault();const question=input.value.trim();if(!question)return;input.value='';bubble(question,'user');send.disabled=true;status.textContent='';try{const data=await api('/api/chat',{session_id:sessionId,message:question,language:language.value});sessionId=data.session_id;bubble(data.answer,'bot');escalate.classList.toggle('open',data.escalate);messages.scrollTop=messages.scrollHeight;}catch(e){status.textContent=e.message;}finally{send.disabled=false;input.focus();}});
+  escalate.addEventListener('submit',async event=>{event.preventDefault();request.disabled=true;try{const data=await api('/api/escalations',{session_id:sessionId,contact:contact.value,consent:consent.checked});status.textContent='Request recorded: ticket #'+data.ticket_id+'. A support agent must review it.';escalate.classList.remove('open');contact.value='';consent.checked=false;}catch(e){status.textContent=e.message;}finally{request.disabled=false;}});
+})();
