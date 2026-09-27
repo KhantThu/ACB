@@ -1,8 +1,11 @@
 name: test
+
 on: [push, pull_request]
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -12,14 +15,29 @@ jobs:
           POSTGRES_DB: test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U test" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - run: pip install -r api/requirements.txt
-      - run: cd api && pytest -q
+
+      - name: Run tests
+        working-directory: api
         env:
           TEST_DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/test
-      - run: cp .env.example .env && sed -i 's/CHANGE_TO_A_DIFFERENT_LONG_RANDOM_ADMIN_SECRET/ci-test-secret/' .env && docker compose config --quiet
+          PYTHONPATH: .
+        run: python -m pytest -q
+
+      - name: Validate Docker Compose
+        run: |
+          cp .env.example .env
+          sed -i 's/CHANGE_TO_A_DIFFERENT_LONG_RANDOM_ADMIN_SECRET/ci-test-secret/' .env
+          docker compose config --quiet
